@@ -205,7 +205,7 @@ discret = mf.ModflowDis(ml, nrow=int(grid_obj.nrow), ncol=int(grid_obj.ncol), nl
                  delr=grid_obj.delr, delc=grid_obj.delc, laycbd=0., top=grid_obj.top, 
                  botm=grid_obj.botm, nper=nper, perlen=perlen, nstp=nstp, steady=steady)
 
-lpf = mf.ModflowLpf(ml, hk=grid_obj.HK, vka=grid_obj.VK, ss=grid_obj.ss,ipakcb=53, sy=0.15, laytyp=laytyp, layavg=0.) 
+lpf = mf.ModflowLpf(ml, hk=grid_obj.HK, vka=grid_obj.VK, ss=grid_obj.ss, sy=0.15, laytyp=laytyp, layavg=0.) 
 #%%============================================================================
 ''' [C] Iterate the model''' 
 start_time = time.time() 
@@ -227,7 +227,7 @@ for period in range(rl):
     wel = mf.ModflowWel(ml, stress_period_data=well_LRCQ_list)                  # Put in Wells
     words = ['head','drawdown','budget', 'phead', 'pbudget']                
     save_head_every = 1
-    #oc = mf.ModflowOc(ml)                                                       # Output control package class --> moved (p3.7 iso p3.6)                   
+    oc = mf.ModflowOc(ml)                                                       # Output control package class                   
     pcg = mf.ModflowPcg(ml, mxiter=200, iter1=200, npcond=1,                    # Preconditioned Conjugate-Gradient Package  --> solves the finite differences equations
                         hclose=0.001, rclose=0.001, relax=1.0, nbpol=0)
     ml.write_input()
@@ -258,7 +258,6 @@ for period in range(rl):
                         mtmuspec=2, dmudc=1.923e-06, cmuref=0.0,                # solute influence on viscocity
                         invisc=-1, visc=-1, extension='vsc')
     mswtf.write_input()
-    oc = mf.ModflowOc(mswtf)
     m = mswtf.run_model(silent=True)                                            # or silent = True // #Run SEAWAT
     
     '''Copy Modflow/MT3DMS output to new files so they wont be overwritten in next timestep.'''
