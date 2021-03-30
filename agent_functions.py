@@ -312,7 +312,7 @@ def calc_flow(well_obj_list, run_length = 12, Qmult=1, imb=0, perlen=30, flowtyp
     if flowtype == 3:
         ''' supply total flow / period in "FLOWS  sheets of excle file '''
         cols = np.arange (len(well_obj_list))
-        excel_flow = pd.read_excel(excel_filename, 'FLOWS', use_cols=cols)
+        excel_flow = pd.read_excel(excel_filename, 'FLOWS', usecols=cols)
         for i in well_obj_list:
             for j in range(run_length):
                 i.flow[j] = int(excel_flow.loc[j,i.N]/perlen)
@@ -320,7 +320,7 @@ def calc_flow(well_obj_list, run_length = 12, Qmult=1, imb=0, perlen=30, flowtyp
         if temp_assigned == True:
             for i in well_obj_list:
                 i.T_inj_assigned = np.zeros(run_length)
-            excel_temp = pd.read_excel(excel_filename, 'TEMPS', use_cols=cols)
+            excel_temp = pd.read_excel(excel_filename, 'TEMPS', usecols=cols)
             for i in well_obj_list:
                 for j in range(run_length):
                     i.T_inj_assigned[j] = excel_temp.loc[j,i.N]
@@ -389,7 +389,7 @@ def createobjfromExcel(objclass, filename, sheetname, cols):
     :returns: list of Python agent objects, instantiated using the Excel attributes
     '''
     
-    excel_df = pd.read_excel(filename, sheetname, use_cols=cols)
+    excel_df = pd.read_excel(filename, sheetname, usecols=cols)
     obj_list = []
      
     for i in range(len(excel_df)):
