@@ -550,7 +550,7 @@ def set_geo_prop(grid_obj, form_obj_list,  gwflow_x=0, gwflow_y=0, dz=1, AqL=2, 
                 grid_obj.ss[k,:,:] = form_obj_list[j].ss       
                 grid_obj.temp[k,:,:] = grid_obj.init_grid[k,:,:] * form_obj_list[j].s1
                 grid_obj.salinity[k,:,:] = grid_obj.init_grid[k,:,:] * form_obj_list[j].s2
-       
+                grid_obj.rho_b[k,:,:] = grid_obj.init_grid[k,:,:] * rho_b
 #Set initial heads according to groundwater flow (based on mfLab Utrecht model)
         PEFF = form_obj_list[AqL].por
         HK = form_obj_list[AqL].Kh
@@ -562,6 +562,7 @@ def set_geo_prop(grid_obj, form_obj_list,  gwflow_x=0, gwflow_y=0, dz=1, AqL=2, 
         
         for j in range (len(form_obj_list)):
             for k in range(int(form_obj_list[j].lbot - form_obj_list[j].ltop)):
+                k += int(form_obj_list[j].ltop)
                 if form_obj_list[j].type == 'aquitard':
                     grid_obj.Tdif[k,:,:] =  Tdif_aqt 
                 else:
