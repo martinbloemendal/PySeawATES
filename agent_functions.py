@@ -471,27 +471,20 @@ def create_LRCQ_list(well_obj_list, grid_obj):
 def RecoveryEfficiencyW(x, well_obj_list,sys_obj_list, rl, T_bt,nW,lenly,years):
     rl = len(x)
     #x = Run_output_fin
-    for j in range(nW):
-       # a = 4+len(sys_obj_list)
+    for j in range(nW):        
         
-        #Eout = sum(abs((x.loc[:,'W'+str(j)+'_T_mf_out']-T_bt) * x.loc[:,'W'+str(j)+'_Vin'])) #'W'+str(j)+'_Vin'   Vout * T_mf_out
-        #Ein =  sum(abs((x.loc[:,'W'+str(j)+'_T_sys_in']-T_bt)* x.loc[:,'W'+str(j)+'_Vout'])) #                       Vin * T_sys_in
-        
-        #well_obj_list[j].TRE = abs(Eout/Ein)
-        
-        
-        Eout = sum(abs((x.loc[-1:(((lenly)*(years-1))-1),'W'+str(j)+'_T_mf_out']-T_bt) * x.loc[-1:(((lenly)*(years-1))-1),'W'+str(j)+'_Vin'])) #'W'+str(j)+'_Vin'   Vout * T_mf_out
-        Ein =  sum(abs((x.loc[-1:(((lenly)*(years-1))-1),'W'+str(j)+'_T_sys_in']-T_bt)* x.loc[-1:(((lenly)*(years-1))-1),'W'+str(j)+'_Vout'])) #                       Vin * T_sys_in
+        Eout = sum(abs((x.loc[-1:(((lenly)*(years-1))-1),'W'+str(j)+'_T_mf_out']-T_bt) * x.loc[-1:(((lenly)*(years-1))-1),'W'+str(j)+'_V_out'])) #'W'+str(j)+'_Vin'   Vout * T_mf_out
+        Ein =  sum(abs((x.loc[-1:(((lenly)*(years-1))-1),'W'+str(j)+'_T_set_inj']-T_bt)* x.loc[-1:(((lenly)*(years-1))-1),'W'+str(j)+'_V_in'])) #                       Vin * T_sys_in
         
         well_obj_list[j].TRE = abs(Eout/Ein)
         
-        Eout_xx = sum(abs((x.loc[rl-lenly:rl,'W'+str(j)+'_T_mf_out']-T_bt) * x.loc[rl-lenly:rl,'W'+str(j)+'_Vin']))
-        Ein_xx =  sum(abs((x.loc[rl-lenly:rl,'W'+str(j)+'_T_sys_in']-T_bt)* x.loc[rl-lenly:rl,'W'+str(j)+'_Vout']))
+        Eout_xx = sum(abs((x.loc[rl-lenly:rl,'W'+str(j)+'_T_mf_out']-T_bt) * x.loc[rl-lenly:rl,'W'+str(j)+'_V_out']))
+        Ein_xx =  sum(abs((x.loc[rl-lenly:rl,'W'+str(j)+'_T_set_inj']-T_bt)* x.loc[rl-lenly:rl,'W'+str(j)+'_V_in']))
         
         well_obj_list[j].TRE_ly = abs(Eout_xx / Ein_xx)
         
-        Eout_yy = sum(abs((x.loc[-1:(lenly-1),'W'+str(j)+'_T_mf_out']-T_bt) * x.loc[-1:(lenly-1),'W'+str(j)+'_Vin']))
-        Ein_yy =  sum(abs((x.loc[-1:(lenly-1),'W'+str(j)+'_T_sys_in']-T_bt)* x.loc[-1:(lenly-1),'W'+str(j)+'_Vout']))
+        Eout_yy = sum(abs((x.loc[-1:(lenly-1),'W'+str(j)+'_T_mf_out']-T_bt) * x.loc[-1:(lenly-1),'W'+str(j)+'_V_out']))
+        Ein_yy =  sum(abs((x.loc[-1:(lenly-1),'W'+str(j)+'_T_set_inj']-T_bt)* x.loc[-1:(lenly-1),'W'+str(j)+'_V_in']))
         
         well_obj_list[j].TRE_fy = abs(Eout_yy / Ein_yy)
         

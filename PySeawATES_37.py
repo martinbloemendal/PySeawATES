@@ -8,7 +8,7 @@
     key elements of this code: dr. Martin Bloemendal, dr.Marc Jaxa-Rozen, 
     prof.dr.Theo Olsthoorn, ir. Stijn Beernink. If you have any questions or 
     remarks please contact:
-        Martin BLoemendal: j.m.bloemendal@tudelft.nl
+        Martin Bloemendal: j.m.bloemendal@tudelft.nl
         Stijn Beernink: stijn.beernink@kwrwater.nl
     The authors take no responsibility for any damage that may follow from 
     using or implementing (the results produced by) this model infrastructure
@@ -18,12 +18,19 @@
     - Python version 3.7
     - Flopy version 3.3.2
     ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++ ++
+    
+    Tips for running code:
+    - single line                   = F9
+    - section (between #%% - #%%)   = ctrl + enter
+    - run entire file               = F5
+    
 '''
 #%%==============================================================================
 ''' [A] all imports, paths, main settings etc.'''
+############## LOAD PACKAGES ########################
+
 import os
 import sys
-os.chdir('D:\Python\PySeawATES_versions\PySeawATES_Py37')                      # Set the proper working directory (WD)
 import shutil 
 import time
 from datetime import datetime, timedelta
@@ -39,27 +46,47 @@ import flopy.modflow as mf
 import flopy.mt3d as mt3
 import flopy.seawat as swt
 import flopy.utils.binaryfile as bf
+
+####################################################
+
+'''set working directory'''
+os.chdir(r'D:\Python\PySeawATES_versions\GITHUB\PySeawATES_Py37_studentTUD')     # Set the proper working directory (WD)
+
 import grid_functions as gf  
 from agent_functions import PyWell, PySystem, createobjfromExcel, create_conc_list,\
-                            create_LRCQ_list, calc_flow, RecoveryEfficiencyW, RecoveryEfficiencyW_dens#,  
+                            create_LRCQ_list, calc_flow, RecoveryEfficiencyW  
+
+################ MAIN SETTINGS #####################
 
 '''Define input'''
 swtexe_name = 'swt_v4.exe'  
-excel_filename = 'well_data3D.xlsx'                                             # in this XLS you set your basis ATES and subsurface characteristics. set to 3D/AXI accordingly in l58
+excel_filename = 'well_dataAXI.xlsx'      #- change this -#                      # in this XLS you set your basis ATES and subsurface characteristics. set to 3D/AXI accordingly in l58
 
 '''Set name for run''' 
 naam = 'test'
-case = 'versie_1' 
+case = 'versie_1_axi' 
 name = naam + case
+
+'''create folder in working directory called 'output before running next line'''
 dirs = ['./output/'+name]                                                       # make sure to create the 'output' folder in WD
 
 '''grid settings '''
-AXI = 0                                                                         # axial symmetric grid or not. | 1=AXI, 0 = 3D |
+AXI = 1                                                                         # axial symmetric grid or not. | 1=AXI, 0 = 3D |
 LIN = 1                                                                         # Linear (1) or logarithmic (0) cell sizes buildup around the center of the modelgrid 
 ICBUND_Up = -1                                                                  # TOP:: -1 = boundary has constant temperature (NO Flow, YES Temperature boundary), 1 = NO Flow, No Tempertature boundary
 ICBUND_Down = -1                                                                # BOTTOM: -1 = boundary has constant temperature (NO Flow, YES Temperature boundary), 1 = NO Flow, No Tempertature boundary
 OutsideAirBound = 0                                                             # 1 = ON, 0=OFF, if ON: the temperature boundary at model top is adjusted following outside air temperature 
-steady = True                                                                   # Switch for steady-state/transient Modflow simulation
+steady = True
+
+'''grid properties'''
+dmin = 5    #horizontal                                                         # smallest cel size at well [m]
+dmin_bound = 100                                                                # total distance from well with 'dmin' sized cells [m]
+dmax = 200                                                                      # largest cell size at model boundary [m]
+aroundAll = 500                                                                 # normal=1500 [m] size of grid around well.
+nstep = 15                                                                      # minimum number of steps that gridfunctions must add  to acquire the dmax size requiremen [-]
+grid_extents = None                                                             # example:[-300,300,-300,300] #set model boundaries [m]
+dz = 5    #vertical                                                             # vertical gridlayer thickness [m]  important to syncronize with layer tops in xls file!
+                                                                   # Switch for steady-state/transient Modflow simulation
 
 '''main time setting parameters'''
 perlen = 30                                                                     # (DAYS)
@@ -76,15 +103,14 @@ imb = 1                                                                         
 temp_assigned = False                                                           # if True, excel input temperature sheet 'TEMP' are being used as input, if False, constant Temp
 gwflow_x = -0.                                                                  # Groundwater flowvelocity in x direction [m/y]
 gwflow_y = -0.                                                                  # Groundwater flowvelocity in y direction [m/y] 
-WaterDensON = 1                                                                 # Calculation of parameters standard =1
 
 '''Load Excel data file'''                                                      # inistialize Well object, grid object, layers, flows etc
 init_well_attribs = ['IsCold','xcor','ycor','parent','SystemPair','YrStart',    # Initial well/system attributes to be passed from the Excel file to the Python objects, Name of attributes to read from Excel file into Python objects
                      'T_inj', 'QdMax','Qy','QfracMin','Rth','Tqmax_c','Tqmax_h','ztop','FilterLength', 'IsMono', 'who', 'N']
 init_system_attribs = ['plot_xmin','plot_ymin','plot_xmax','plot_ymax',         # Not used in this example but needed for ATES agents. Create lists of Python objects from Excel file - column indices must be set manually so that the names match init_*_attribs (cols have to be listed in increasing order, but doesn't have to respect order of init_well_attribs)
                        'building_xmin','building_ymin','building_xmax','building_ymax', 'xcor','ycor'] 
-sys_obj_list = createobjfromExcel(PySystem,excel_filename, sheetname='Systems',cols='A:BJ') # not used for individual systems. but can be used when simulating multiple ATES systems
-well_obj_list = createobjfromExcel(PyWell,excel_filename, sheetname='Wells',cols='A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,AA,AB,AC,AD') #creates well object from  data in xls file
+sys_obj_list = createobjfromExcel(PySystem,excel_filename, sheetname='Systems',cols='A:D') # not used for individual systems. but can be used when simulating multiple ATES systems
+well_obj_list = createobjfromExcel(PyWell,excel_filename, sheetname='Wells',cols='A:P') #creates well object from  data in xls file
 form_obj_list = createobjfromExcel(PySystem,excel_filename, sheetname = 'Layers', cols = 'A:J') # creates subsurface/soil properties following the lithology given in the layer table in xls.
 mon_obj_list = createobjfromExcel(PySystem,excel_filename, sheetname = 'Monitoring', cols = 'A:D') # creates list of monitoring points in your grid where you can track the temperature
 nmon = len(mon_obj_list)
@@ -93,7 +119,7 @@ nW=len(well_obj_list)                                                           
 T_amb = form_obj_list[0].s1                                                     # Ambient Temperature of the subsurface
 
 #%%============================================================================
-''' [B] Detailed MODFLOW/geohydr. inputs'''                                         # Default conductivities and porosity - assumed constant for  model, can be handled as arrays like temperature/head
+''' [B] Detailed MODFLOW/geohydr. inputs'''                                     # Default conductivities and porosity - assumed constant for  model, can be handled as arrays like temperature/head
 ''' basic parameter settings'''
 PEFF = form_obj_list[0].por                                                     # porosity [-]
 al = 0.5                                                                        # dispersivity [m]
@@ -145,13 +171,6 @@ for i in range(rl):
 Run_output = Run_info.copy()                                                    # output dataframe
 
 '''Make grid'''                                                                 # Make the grid + assign properties, initial and boundary conditions  Initialize grid object
-dmin = 10    #horizontal                                                         # smallest cel size at well [m]
-dmin_bound = 100                                                                # total distance from well with 'dmin' sized cells [m]
-dmax = 200                                                                      # largest cell size at model boundary [m]
-aroundAll = 500                                                                 # normal=1500 [m] size of grid around well.
-nstep = 15                                                                      # minimum number of steps that gridfunctions must add  to acquire the dmax size requiremen [-]
-grid_extents = None                                                             # example:[-300,300,-300,300] #set model boundaries [m]
-dz = 5    #vertical                                                             # vertical gridlayer thickness [m]  important to syncronize with layer tops in xls file!
 
 IsMono=well_obj_list[0].IsMono                                                  # mono or doublet for setting up axigrid
 zbot = form_obj_list[nform-1].zBot                                              # bottom of the modelgrid [m]
@@ -229,7 +248,7 @@ for period in range(rl):
         if temp_assigned == True:
            i.T_inj = i.T_inj_assigned[period]
             
-    well_LRCQ_list = create_LRCQ_list(well_obj_list, grid_obj)                  # Set the settings of the wells for that timestep
+    well_LRCQ_list = create_LRCQ_list(well_obj_list, grid_obj)                     # Set the settings of the wells for that timestep
     ssm_data = create_conc_list(well_obj_list, attrib='T_inj') 
     
     '''Initialize MODFLOW Packages'''
@@ -290,35 +309,22 @@ for period in range(rl):
             i.H_modflow = grid_obj.head[i.L[-1],i.R,i.C]
             i.T_modflow = np.average(grid_obj.temp[i.start_idx:i.stop_idx,i.R,i.C])  #the average of all the cells of the injection well! (start.idx and stop.idx) 
    
-    '''Save temp monitoring pointsdata to results array'''
-    for m in range(len(mon_LRC_list)):
-        RES[period,m] = grid_obj.temp[int(mon_LRC_list[m,0]),int(mon_LRC_list[m,1]),int(mon_LRC_list[m,2])]    
+    # '''Save temp monitoring pointsdata to results array'''
+    # for m in range(len(mon_LRC_list)):
+    #     RES[period,m] = grid_obj.temp[int(mon_LRC_list[m,0]),int(mon_LRC_list[m,1]),int(mon_LRC_list[m,2])]    
     
     '''save the info the the Run_output file'''
     for j in range(len(well_obj_list)):
         if well_obj_list[j].Q >0:
-            Run_output.loc[period,'W'+str(j)+'_Vin'] =  0
-            Run_output.loc[period,'W'+str(j)+'_Vout'] =  well_obj_list[j].Q*perlen
+            Run_output.loc[period,'W'+str(j)+'_V_out'] =  0
+            Run_output.loc[period,'W'+str(j)+'_V_in'] =  well_obj_list[j].Q*perlen
         else:
-            Run_output.loc[period,'W'+str(j)+'_Vin'] = well_obj_list[j].Q*perlen
-            Run_output.loc[period,'W'+str(j)+'_Vout'] = 0  
+            Run_output.loc[period,'W'+str(j)+'_V_out'] = well_obj_list[j].Q*perlen
+            Run_output.loc[period,'W'+str(j)+'_V_in'] = 0  
             
-        Run_output.loc[period,'W'+str(j)+'_T_sys_in'] = well_obj_list[j].T_inj
+        Run_output.loc[period,'W'+str(j)+'_T_set_inj'] = well_obj_list[j].T_inj
         Run_output.loc[period,'W'+str(j)+'_T_mf_out'] = well_obj_list[j].T_modflow
-        Run_output.loc[period,'Dens_water_in'] = denseref + drhodT * well_obj_list[j].T_inj
-        Run_output.loc[period,'Dens_water_out'] = denseref + drhodT * well_obj_list[j].T_modflow
     
-    '''Density water influenced by Temperature'''                               # Update parameters based on rho_f per gridcell
-    if WaterDensON ==1:
-        grid_obj.rho_f = (1000 - ((grid_obj.temp-4)**2 / 207))                  # calculate updated water density for each cell       
-        grid_obj.Kdist = Cp_s/(grid_obj.rho_f*Cp_f)                             # calculate updated Kdist for each cell (with updated rho_f
-        for j in range (len(form_obj_list)):                                    # calculate updated Tdif for each layer (or Aqt or Aq)
-            for k in range(int(form_obj_list[j].lbot - form_obj_list[j].ltop)):
-                if form_obj_list[j].type == 'aquitard':
-                    grid_obj.Tdif[k,:,:] =  kT_aqt / (PEFF*grid_obj.rho_f[k,:,:]*Cp_f) * 24 * 3600
-                else:
-                    grid_obj.Tdif[k,:,:] = kT_aq / (PEFF*grid_obj.rho_f[k,:,:]*Cp_f) * 24 * 3600 
-   
     print (str(period)+' (of '+str(rl-1)+')') 
     h_obj.file.close()
     t_obj.file.close()
@@ -339,14 +345,11 @@ Run_output.to_csv(os.path.join(dirs[0])+'/Run_output__'+name+'.csv')
 ''' [D] Post processing'''
 lenly= int(rl/years)                                                            # length of last year (depends on the perlen), $$$ hier ging wat fout.
 RecoveryEfficiencyW(Run_output,well_obj_list,sys_obj_list,rl,T_amb,nW,lenly,years)  # Recovery efficiency according to definition by Bloemendal&Hartog 2018
-print(well_obj_list[0].TRE)                                                     # The Recovery Efficiency of a well
-print(well_obj_list[0].TRE_ly)                                                  # The Recovery Efficiency of the last year of a well
-print(well_obj_list[0].TRE_fy)                                                  # The Recovery Efficiency of the first year of a well
 
 '''Geometric properties - analysis'''                                           # Check 'Bloemendal & Hartog 2018'
 L_screen = (well_obj_list[0].stop_idx - well_obj_list[0].start_idx) * dz
 yearlength = int(rl/years) 
-V = sum(RES[rl-yearlength:rl,0])
+V = well_obj_list[0].Qy
 RtoRth = (PEFF*Cw/Caq)**0.5
 
 def AV_ratio(L,V):
@@ -357,7 +360,8 @@ def AV_ratio(L,V):
 def L_Rth(L,V):
     L_Rth = L / (RtoRth* np.sqrt(V/(np.pi*L*PEFF)))
     return(L_Rth)
-    
+
+'''Some general print statements of the simulation'''
 print('Efficiency= '+str(well_obj_list[0].TRE))
 print('Efficiency LY= '+str(well_obj_list[0].TRE_ly))
 a = AV_ratio(L_screen,V)
@@ -368,7 +372,7 @@ print('Total Vin:',str(V))
 print('ScreenLength:',str(L_screen))
 print('Runtime= '+str(round(elapsed_time,1))+' min')
 
-'''initialize contourlevels, plot boundaries, wells, layers, etc.'''
+'''initialize contourlevels, plot boundaries, wells, layers, etc for plotting (section E)'''
 SY=0                                                                            # start year of simulation if applicable
 Hlevel = np.linspace(-2,2, 100)                                                 # Head levels
 Tlevel = np.linspace(Tmin-1, Tmax+1, 100)                                       # Temperature levels
@@ -382,7 +386,7 @@ else:
 
 Z1 = int(np.around(np.average(well_obj_list[0].L)))
 for i in range(len(grid_obj.sumdelr)):
-    if grid_obj.sumdelr[i] < 300:                                               # right boundary of contour plots in m from well loaction
+    if grid_obj.sumdelr[i] < 150:                                               # right boundary of contour plots in m from well loaction
         a = i
     ResCol= int(a+1)
 
@@ -390,7 +394,7 @@ days = np.zeros(rl)
 for i in range(rl):
     days[i] = perlen*(i+1)
 
-OB = int(dmin_bound/dmin)*1.5                                                   # OutsideBox --> plot window / selection of UCN files
+OB = int(dmin_bound/dmin)*1.3                                                   # OutsideBox --> plot window / selection of UCN files
 Wellb = np.zeros((len(well_obj_list),4))                                        # Define wells
 for x in range(len(well_obj_list)):
     Wellb[x, 0]= well_obj_list[x].C - OB                                        # Left
@@ -441,8 +445,18 @@ for i in range(n_aq):
 
 #%%==============================================================================
 ''' [E] PLOT the figures'''
-'''Temperature around the well''' 
-plots = [rl-6,rl-1]                                                             # plot the times indicated in this array
+
+'''make directory to save the figures'''
+path = dirs[0]+'/figs'
+try:
+    os.mkdir(path)
+except OSError:
+    print ("Creation of the directory %s failed" % path)
+else:
+    print ("Successfully created the directory %s " % path)
+
+'''Temperature around the well - these plots are saved in the figs subfolder in the output folder''' 
+plots = [rl-12,rl-11,rl-10,rl-9,rl-8,rl-7,rl-6,rl-5,rl-4,rl-3,rl-2,rl-1] #create plots for the last 12 timesteps                                                             # plot the times indicated in this array
 for i in range(len(plots)):
     t=int(plots[i])
     year = SY + int(((t+1) * perlen) / 365)
@@ -456,7 +470,8 @@ for i in range(len(plots)):
     temp1 = t_obj.get_data(totim=perlen)
     t_obj.close() 
     if AXI == 0:
-        fig, (ax0, ax1)  = plt.subplots(ncols=2, sharey=True)
+        ''' 3D plot of wells, col 1 = temp, col 2 = heads '''
+        fig, (ax0, ax1)  = plt.subplots(ncols=2, sharey=True,figsize=[10,4])
         im0 = ax0.contour(X[Left:Right], Y[Down:Up], temp1[Z1,Down:Up,Left:Right], 
                               colors=('black'), linestyles=('dotted'), linewidths=1,levels = T2level_w)#,label=True)
         im0 = ax0.contourf(X[Left:Right], Y[Down:Up], temp1[Z1,Down:Up,Left:Right], cmap='seismic', levels = Tlevel) #
@@ -465,7 +480,7 @@ for i in range(len(plots)):
         fig.colorbar(im0, ax=ax0, format = '%1.0f')
         im1 = ax1.contourf(X[Left:Right], Y[Down:Up], head[max(well_obj_list[0].L-1),Down:Up,Left:Right], cmap='BrBG', levels = Hlevel) #
         ax1.set_title('Heads [m] in aquifer '+str((Z1)*dz)+' (m) depth ',fontsize=10)
-        fig.colorbar(im1, ax=ax1, format = '%1.0f')
+        fig.colorbar(im1, ax=ax1, format = '%1.1f')
         for i in range(len(well_obj_list)):
             if well_obj_list[i].type == 'warm':
                 ax0.plot(well_obj_list[i].xcor,well_obj_list[i].ycor,'o',c='k' ,markeredgecolor='k')
@@ -481,9 +496,12 @@ for i in range(len(plots)):
         ax0.set_xlabel('x-coor [m]')
         ax1.set_xlabel('x-coor [m]')
         plt.show()
-        #plt.savefig(name + 'tempcontour-plan.png', dpi=300,bbox_inches='tight')
-        
-        fig, (ax0)  = plt.subplots(nrows=1)
+        ax0.axis('equal')
+        ax1.axis('equal')
+        fig.savefig(dirs[0]+'/figs/'+name+'Temp_top_'+textstr+'.png', dpi=100) 
+
+        ''' cross section of the temperature of the wells at y=0'''        
+        fig, (ax0)  = plt.subplots(nrows=1,figsize=[10,4])
         im0 = ax0.contourf(X[Left:Right], Z[:], temp1[:,well_obj_list[1].R,Left:Right], cmap='seismic', levels = Tlevel) #
         ax0.set_title('Cross section E-W: Temperature at some wells[C]',fontsize=10)
         cs = ax0.contour(X[Left:Right], Z[:],temp1[:,well_obj_list[1].R,Left:Right], colors=('black'), linestyles=('dotted'), linewidths=1,levels = T2level_w)
@@ -501,8 +519,11 @@ for i in range(len(plots)):
             ax0.fill_between(well_obj_list[i].xcor + xw, welltops[i], wellbots[i], color = 'k')
         props = dict(boxstyle='round', facecolor='w', alpha=0.5)
         ax0.text(0.05, 0.95, textstr, transform=ax0.transAxes, fontsize=10, verticalalignment='top', bbox=props)# place a text box in upper left in axes coords
-        plt.show() 
-#        fig.savefig(case_name+'Temp_vertical_warm-'+textstr+'.png', dpi=300) 
+        plt.show()
+        ax0.axis('equal')
+
+        fig.tight_layout()
+        fig.savefig(dirs[0]+'/figs/'+name+'Temp_cross_'+textstr+'.png', dpi=100) 
 
     else:
         if IsMono == 1:
@@ -527,7 +548,7 @@ for i in range(len(plots)):
             ax0.text(0.05, 0.95, textstr, transform=ax0.transAxes, fontsize=10, verticalalignment='top', bbox=props)
             plt.xlabel('distance from well location [m]')
             plt.show()
-#            fig.savefig('warmWell '+str(name)+'.png', dpi=300) 
+            fig.savefig(dirs[0]+'/figs/'+name+'Temp_cross_'+textstr+'.png', dpi=100) 
             
         if IsMono == 0:
             fig, (ax2, ax3)  = plt.subplots(nrows=2, sharex=True) 
@@ -569,13 +590,16 @@ for i in range(len(plots)):
             props = dict(boxstyle='round', facecolor='w', alpha=0.5)
             ax3.text(0.05, 0.95, textstr, transform=ax2.transAxes, fontsize=10, verticalalignment='top', bbox=props)
             plt.show()
-#            fig.savefig(str(name)+'.png', dpi=300) 
+            fig.savefig(dirs[0]+'/figs/'+name+'Temp_cross_'+textstr+'.png', dpi=100) 
 
-''' Temperatures and discharge'''
+
+
+
+''' Average temperatures and discharge from well'''
 fig, (ax0, ax1)  = plt.subplots(nrows=2, sharex=True)
 ax0.set_title('Discharge of wells',fontsize=10)
 for i in range(nW):
-    im0 = ax0.plot(days,Run_output.loc[:,'W'+str(i)+'_Vin'] + Run_output.loc[:,'W'+str(i)+'_Vout'], color=colors[i], label=well_obj_list[i].type),
+    im0 = ax0.plot(days,Run_output.loc[:,'W'+str(i)+'_V_out'] + Run_output.loc[:,'W'+str(i)+'_V_in'], color=colors[i], label=well_obj_list[i].type),
 ax0.set_ylabel('well discharge [m3/month]',fontsize=10)
 ax0.set_facecolor('lightgrey')
 plt.grid(True, 'major', lw=1, c='w')
@@ -590,20 +614,9 @@ ax1.set_facecolor('lightgrey')
 plt.grid(True, 'major', lw=1, c='w') 
 plt.show() 
 plt.legend() 
-#fig.savefig(str(name) + '_well_Q&T.png', dpi=300)
 
-''' monitoring points '''
-fig, (ax2)  = plt.subplots(nrows=1, sharex=True)
-ax2.set_title('Temperatures monitoring points',fontsize=10) 
-ax2.set_xlabel('time [d]',fontsize=10)
-for i in range(nmon):
-    im2 = ax2.plot(days,RES[:,i], color=colors[i+nW], label= str(mon_obj_list[i].Mon+1))
-ax2.set_ylabel('Temperature monitoring point [C]',fontsize=10)  
-ax2.set_facecolor('lightgrey')
-plt.grid(True, 'major', lw=1, c='w')
-plt.show()   
-plt.legend() 
-#fig.savefig(str(name) + '_Temp_monitoring_points.png', dpi=300)
+
+
 
 '''SOIL PROFILE'''                                                              # Just the soil profile without temperature distribution
 if AXI == 1:
